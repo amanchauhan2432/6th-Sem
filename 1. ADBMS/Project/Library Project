@@ -1,0 +1,247 @@
+TABLE CREATION AND INSERTION:
+
+Table 1:
+
+CREATE TABLE Library (BookName varchar(30) Primary Key,Author varchar(30), Publication varchar(30));
+
+INSERT INTO Library Values('Artificial Intelligence', 'Russell', 'Pearson');
+INSERT INTO Library Values('Compiler Design', 'Adelyn Zhou', 'Reed Elsevier');
+INSERT INTO Library Values('ADBMS', 'Lasse', 'Wolters Kluwer');
+INSERT INTO Library Values('Ethical Hacking', 'John', 'Hachette Livre');
+INSERT INTO Library Values('Python', 'Ajay Agrawal', 'McGraw-Hill');
+
+
+
+
+Table 2:
+
+CREATE TABLE Students(RollNo number(8) Primary Key, Name varchar(30), No_Card number(8));
+
+INSERT INTO Students Values(181501, 'Ammy', 2);
+INSERT INTO Students Values(181502, 'Billy', 2);
+INSERT INTO Students Values(181503, 'Dustin', 2);
+INSERT INTO Students Values(181504, 'El', 2);
+INSERT INTO Students Values(181505, 'Lucas', 2);
+INSERT INTO Students Values(181507, 'Maxine', 2);
+INSERT INTO Students Values(181508, 'Mike', 2);
+INSERT INTO Students Values(181509, 'Will', 2);
+
+
+
+
+Table 3:
+
+CREATE TABLE Books(BookNo number(8), BookName varchar(30) ,Available varchar(10),Allotted_To number(10), Copies number(5), FOREIGN KEY (BookName) REFERENCES Library (BookName));
+
+INSERT INTO Books Values(180501, 'ADBMS', 'YES', 0, 5);
+INSERT INTO Books Values(180502, 'Artificial Intelligence', 'YES', 0, 5);
+INSERT INTO Books Values(180503, 'Compiler Design', 'YES', 0, 5);
+INSERT INTO Books Values(180504, 'Ethical Hacking', 'YES', 0, 5);
+INSERT INTO Books Values(180505, 'Python', 'YES', 0, 5);
+
+
+
+
+Table 4:
+
+CREATE TABLE Allotment(BookNo number(8), RollNo number(8), Allt_Date date, Return_Date date,  FineAmount number(8), Status varchar(20), FOREIGN KEY (RollNo) REFERENCES Students (RollNo));
+
+
+
+
+
+
+
+PROCEDURE:
+
+Procedure 1 Issue Book:
+
+CREATE OR REPLACE PROCEDURE IssueBook(Book_Name varchar, Roll_No number) AS
+Book_Rec Books%rowtype;
+Stud_Rec Students%rowtype;
+Book_No number;
+
+BEGIN
+
+    SELECT * INTO Stud_Rec FROM Students WHERE RollNo = Roll_No;
+    IF Stud_Rec.No_Card = 0 THEN
+        dbms_output.put_line('#######################');
+        dbms_output.put_line('#  No Card Available  #');
+        dbms_output.put_line('#######################'); 
+    
+    ELSE
+        SELECT * INTO Book_Rec FROM Books WHERE BookName = Book_Name AND Available = 'YES';
+        
+        IF Book_Rec.Copies=0 THEN
+            dbms_output.put_line('########################');
+            dbms_output.put_line('#  Book Not Available  #');
+            dbms_output.put_line('########################');
+            UPDATE Books SET Available = 'NO' WHERE BookName = Book_Name;
+        ELSE
+            SELECT MIN(BookNo) INTO Book_No FROM Books WHERE BookName = Book_Name AND Available = 'YES';
+            INSERT INTO Allotment VALUES(Book_No, Roll_No, sysdate, sysdate+7,0, 'Not Returned');
+            UPDATE Students SET No_Card = No_Card - 1 WHERE RollNo = Roll_no;
+            UPDATE Books SET Allotted_To = Allotted_To + 1, Copies = Copies - 1 WHERE BookNo = Book_No;
+
+        END IF;
+    END IF;
+
+    EXCEPTION
+    WHEN No_Data_Found THEN
+    dbms_output.put_line('########################');
+    dbms_output.put_line('#  You Are Not A User  #');
+    dbms_output.put_line('########################');
+END IssueBook;
+
+
+
+
+
+
+Procedure 2 Return Book:
+
+CREATE OR REPLACE PROCEDURE ReturnBook(Book_No number, Roll_No number) AS
+Book_Rec Books%rowtype;
+Fine number;
+
+BEGIN
+    SELECT * INTO Book_Rec FROM Books WHERE BookNo = Book_No;
+    IF Book_Rec.Copies = 5 THEN
+        dbms_output.put_line('#######################');
+        dbms_output.put_line('#  Book Is Available  #');
+        dbms_output.put_line('#######################');
+    
+    ELSE
+        UPDATE Allotment SET Return_Date = sysdate WHERE BookNo = Book_No AND RollNo = Roll_No AND Status = 'Not Returned';
+        SELECT Return_Date - Allt_Date INTO Fine FROM Allotment WHERE BookNo = Book_No AND RollNo = Roll_No AND Status = 'Not Returned';
+        
+        IF FINE > 7 THEN
+            UPDATE Allotment SET FineAmount = Fine WHERE BookNo = Book_No AND RollNo = Roll_No AND Status = 'Not Returned';
+            dbms_output.put_line('#################################');
+            dbms_output.put_line('#  You Have To Pay A Fine Of Rs ' || Fine ||'  #');
+            dbms_output.put_line('#################################');
+        END IF;
+
+        UPDATE Allotment SET Status = 'Returned' WHERE BookNo = Book_No AND RollNo = Roll_No;
+        UPDATE Students SET No_Card = No_Card + 1 WHERE RollNo = Roll_No;
+        UPDATE Books SET Available = 'YES' WHERE BookNo = Book_No;
+        UPDATE Books SET Allotted_To = Allotted_To - 1, Copies = Copies + 1 WHERE BookNo = Book_No;
+    END IF;
+
+    EXCEPTION
+        WHEN No_Data_Found THEN
+        dbms_output.put_line('#####################################');
+        dbms_output.put_line('#  Book Does Not Belong To Library  #');
+        dbms_output.put_line('#####################################');
+
+END ReturnBook;
+
+
+
+
+
+
+Procedure 3:
+
+CREATE OR REPLACE PROCEDURE RESET_ALL() AS
+BEGIN
+    UPDATE Students SET No_Card = 3;
+    UPDATE Books SET Available = 'YES', Allotted_To = 0, Copies = 5;
+    Drop Table Allotment;
+    CREATE TABLE Allotment(BookNo number(8), RollNo number(8), Allt_Date date, Return_Date date,  FineAmount number(8), Status varchar(20), FOREIGN KEY (RollNo) REFERENCES Students (RollNo));
+END RESET_ALL;
+
+
+
+
+
+
+Procedure 4:
+
+CREATE OR REPLACE PROCEDURE AddBook_L(Book_Name varchar, Book_Author varchar, Book_Pub varchar) AS
+BEGIN
+    INSERT INTO Library VALUES(Book_Name, Book_Author, Book_Pub);
+END AddBook_L;
+
+
+
+
+
+
+Procedure 5:
+
+CREATE OR REPLACE PROCEDURE AddBook_B(Book_Number number, Book_Name varchar) AS
+BEGIN
+    INSERT INTO Books VALUES(Book_Number, Book_Name, 'YES', 0, 5);
+END AddBook_B;
+
+
+
+
+
+
+Procedure 6:
+
+DECLARE
+input number;
+Book_Name varchar;
+Book_No number;
+Roll_No number;
+Book_Author number;
+Book_Pub number;
+
+	
+BEGIN
+    WHILE TRUE LOOP
+        dbms_output.put_line('#####################################');
+        dbms_output.put_line('#                                   #');
+        dbms_output.put_line('#  ----- Welcome To Library  -----  #');
+        dbms_output.put_line('#  1. Press 1 To Add A Book         #');
+        dbms_output.put_line('#  2. Press 2 To Issue A Book       #');
+        dbms_output.put_line('#  3. Press 3 To Return A Book      #');
+        dbms_output.put_line('#  4. Press 4 To Exit               #');
+        dbms_output.put_line('#                                   #');
+        dbms_output.put_line('#                                   #');
+        dbms_output.put_line('#  Enter Your Choice:               #');
+        dbms_output.put_line('#####################################');
+
+        input := :input;
+
+        IF input = 1 THEN
+            dbms_output.put_line('Enter Book Name: ');
+            Book_Name := :Book_Name;
+            dbms_output.put_line('Enter Book Number: ');
+            Book_No := :Book_No;
+            dbms_output.put_line('Enter Author: ');
+            Book_Author := :Book_Author;
+            dbms_output.put_line('Enter Publication: ');
+            Book_Pub := :Book_Pub;
+            
+            AddBook_L(Book_Name, Book_Author, Book_Pub);
+            AddBook_B(Book_Number, Book_Name, 'YES', 0, 5);
+
+        ELSEIF input = 2 THEN
+            dbms_output.put_line('Enter Book Name: ');
+            Book_Name := :Book_Name;
+            dbms_output.put_line('Enter Roll Number: ');
+            Roll_No := :Roll_No;
+
+            IssueBook(Book_Name, Roll_No);
+
+        ELSEIF input = 3 THEN
+            dbms_output.put_line('Enter Book Number: ');
+            Book_No := :Book_No;
+            dbms_output.put_line('Enter Roll Number: ');
+            Roll_No := :Roll_No;
+            
+            ReturnBook(Book_No, Roll_No);
+        
+        ELSEIF input = 4 THEN
+            BREAK;
+        
+        ELSE
+            dbms_output.put_line('Please Enter A Valid Choice');
+
+        END IF;
+    END LOOP;
+END;
